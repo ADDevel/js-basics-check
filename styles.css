@@ -312,6 +312,11 @@ details {
   padding-top: 14px;
 }
 
+summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
 pre {
   overflow-x: auto;
   border-radius: 8px;
@@ -319,6 +324,55 @@ pre {
   color: #eef8f1;
   padding: 12px;
   font-size: 13px;
+}
+
+.attempts-log {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.attempts-log h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.attempt {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbf8f2;
+}
+
+.attempt-ok {
+  border-color: rgba(18, 112, 68, 0.35);
+}
+
+.attempt-bad {
+  border-color: rgba(179, 38, 30, 0.35);
+}
+
+.attempt-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.attempt p {
+  margin: 8px 0;
+  font-weight: 800;
+}
+
+.attempt-test {
+  display: grid;
+  gap: 5px;
+  margin: 8px 0;
+  color: var(--muted);
+}
+
+.attempt-test code {
+  color: var(--text);
 }
 
 @media (max-width: 720px) {

@@ -131,7 +131,8 @@ for (const task of TASKS) {
     passed: false,
     attempts: 0,
     lastError: "",
-    testResults: []
+    testResults: [],
+    attemptLog: []
   };
 }
 
@@ -233,7 +234,8 @@ function resetTask(taskId) {
     passed: false,
     attempts: state.answers[taskId].attempts,
     lastError: "",
-    testResults: []
+    testResults: [],
+    attemptLog: state.answers[taskId].attemptLog
   };
   renderTasks();
 }
@@ -243,6 +245,14 @@ function runTask(taskId) {
   const answer = state.answers[taskId];
   answer.attempts += 1;
   answer.code = document.querySelector(`[data-task="${taskId}"] textarea`).value;
+  const attempt = {
+    number: answer.attempts,
+    checkedAt: new Date().toISOString(),
+    code: answer.code,
+    passed: false,
+    error: "",
+    tests: []
+  };
 
   try {
     const api = buildApi(answer.code, task.fn);
@@ -257,12 +267,17 @@ function runTask(taskId) {
     answer.lastError = failed
       ? `Пока неверно: ${failed.label}. Ожидалось ${toText(failed.expected)}, получилось ${toText(failed.actual)}`
       : "";
+    attempt.tests = testResults;
+    attempt.passed = answer.passed;
+    attempt.error = answer.lastError;
   } catch (error) {
     answer.passed = false;
     answer.lastError = error.message || String(error);
     answer.testResults = [];
+    attempt.error = answer.lastError;
   }
 
+  answer.attemptLog.push(attempt);
   renderTasks();
 }
 
@@ -295,7 +310,8 @@ function buildReport() {
       attempts: answer.attempts,
       lastError: answer.lastError,
       code: answer.code,
-      tests: answer.testResults
+      tests: answer.testResults,
+      attemptLog: answer.attemptLog
     };
   });
   const score = tasks.filter((task) => task.passed).length;
@@ -372,13 +388,17 @@ function parseRequestContent(content) {
 function renderResult({ index, report }) {
   const failed = report.tasks.filter((task) => !task.passed);
   const mistakes = failed.length
-    ? failed.map((task) => `<div><strong>${escapeHtml(task.title)}</strong><br><span class="muted">${escapeHtml(task.lastError || "Не решено")}</span></div>`).join("")
+    ? failed.map((task) => {
+      const label = task.attempts > 0 ? task.lastError || "Последний запуск неверный" : "Не запускалось";
+      return `<div><strong>${escapeHtml(task.title)}</strong><br><span class="muted">${escapeHtml(label)}</span></div>`;
+    }).join("")
     : "<div class=\"muted\">Ошибок нет</div>";
 
   const codeBlocks = report.tasks.map((task) => `
     <details>
-      <summary>${escapeHtml(task.title)}: ${task.passed ? "верно" : "ошибка"}, попыток ${task.attempts}</summary>
+      <summary>${escapeHtml(task.title)}: ${taskStatusText(task)}, запусков ${task.attempts}</summary>
       <pre>${escapeHtml(task.code)}</pre>
+      ${renderAttemptLog(task)}
     </details>
   `).join("");
 
@@ -394,6 +414,54 @@ function renderResult({ index, report }) {
       <div class="mistakes">${mistakes}</div>
       ${codeBlocks}
     </article>
+  `;
+}
+
+function taskStatusText(task) {
+  if (task.passed) return "верно";
+  if (task.attempts > 0) return "ошибка";
+  return "не запускалось";
+}
+
+function renderAttemptLog(task) {
+  const attempts = Array.isArray(task.attemptLog) ? task.attemptLog : [];
+  if (!attempts.length) {
+    return "<p class=\"muted\">Истории запусков нет. Эта запись была создана до обновления логирования.</p>";
+  }
+
+  return `
+    <div class="attempts-log">
+      <h3>История запусков</h3>
+      ${attempts.map((attempt) => renderAttempt(attempt)).join("")}
+    </div>
+  `;
+}
+
+function renderAttempt(attempt) {
+  const failedTest = Array.isArray(attempt.tests) ? attempt.tests.find((test) => !test.passed) : null;
+  const result = attempt.passed
+    ? "Верно"
+    : attempt.error || "Неверный результат";
+  const details = failedTest
+    ? `
+      <div class="attempt-test">
+        <div><strong>Упал тест:</strong> ${escapeHtml(failedTest.label)}</div>
+        <div><strong>Ожидалось:</strong> <code>${escapeHtml(toText(failedTest.expected))}</code></div>
+        <div><strong>Получилось:</strong> <code>${escapeHtml(toText(failedTest.actual))}</code></div>
+      </div>
+    `
+    : "";
+
+  return `
+    <div class="attempt ${attempt.passed ? "attempt-ok" : "attempt-bad"}">
+      <div class="attempt-head">
+        <strong>Запуск ${escapeHtml(attempt.number)}</strong>
+        <span>${escapeHtml(new Date(attempt.checkedAt).toLocaleString("ru-RU"))}</span>
+      </div>
+      <p>${escapeHtml(result)}</p>
+      ${details}
+      <pre>${escapeHtml(attempt.code)}</pre>
+    </div>
   `;
 }
 
