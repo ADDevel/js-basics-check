@@ -117,6 +117,56 @@ const TASKS = [
       ["totalPrice([{ price: 100, count: 2 }, { price: 50, count: 3 }])", (api) => api.totalPrice([{ price: 100, count: 2 }, { price: 50, count: 3 }]), 350],
       ["totalPrice([])", (api) => api.totalPrice([]), 0]
     ]
+  },
+  {
+    id: "theory-types",
+    type: "quiz",
+    title: "11. Типы данных",
+    text: "Какие из перечисленных типов относятся к примитивным типам данных в JavaScript?",
+    options: [
+      "string, number, boolean, null, undefined, symbol, bigint",
+      "array, object, function, class",
+      "string, array, object, promise",
+      "number, object, null, function"
+    ],
+    correct: "string, number, boolean, null, undefined, symbol, bigint",
+    explanation: "Примитивы в JS: string, number, boolean, null, undefined, symbol, bigint. Объекты, массивы и функции не примитивы."
+  },
+  {
+    id: "theory-typeof-array",
+    type: "quiz",
+    title: "12. Массив и typeof",
+    text: "Что вернет выражение typeof []?",
+    options: ["array", "object", "list", "undefined"],
+    correct: "object",
+    explanation: "Массивы в JavaScript являются объектами, поэтому typeof [] возвращает object."
+  },
+  {
+    id: "theory-let-const",
+    type: "quiz",
+    title: "13. let и const",
+    text: "Что лучше использовать, если переменная не должна быть переназначена?",
+    options: ["var", "let", "const", "function"],
+    correct: "const",
+    explanation: "const запрещает переназначение самой переменной. Для изменяемых значений используют let."
+  },
+  {
+    id: "theory-falsy",
+    type: "quiz",
+    title: "14. Falsy значения",
+    text: "Какое значение является falsy в JavaScript?",
+    options: ["\"0\"", "[]", "0", "{}"],
+    correct: "0",
+    explanation: "0 является falsy. Строка \"0\", пустой массив и пустой объект являются truthy."
+  },
+  {
+    id: "theory-object-access",
+    type: "quiz",
+    title: "15. Доступ к полю объекта",
+    text: "Как получить значение поля name из объекта user?",
+    options: ["user.name", "user->name", "user[name]", "name.user"],
+    correct: "user.name",
+    explanation: "Обычный доступ к полю объекта выполняется через точку: user.name. Запись user[name] требует переменную name."
   }
 ];
 
@@ -127,7 +177,8 @@ const state = {
 
 for (const task of TASKS) {
   state.answers[task.id] = {
-    code: task.starter,
+    code: task.starter || "",
+    selected: "",
     passed: false,
     attempts: 0,
     lastError: "",
@@ -186,7 +237,19 @@ function renderTasks() {
   const tasksEl = $("#tasks");
   tasksEl.innerHTML = TASKS.map((task, index) => {
     const answer = state.answers[task.id];
-    const tests = task.tests.map(([label]) => `<li>${escapeHtml(label)}</li>`).join("");
+    const tests = task.type === "quiz"
+      ? task.options.map((option) => `
+        <label class="quiz-option">
+          <input type="radio" name="${escapeHtml(task.id)}" value="${escapeHtml(option)}" ${answer.selected === option ? "checked" : ""}>
+          <span>${escapeHtml(option)}</span>
+        </label>
+      `).join("")
+      : `<ul class="test-list">${task.tests.map(([label]) => `<li>${escapeHtml(label)}</li>`).join("")}</ul>`;
+    const editor = task.type === "quiz"
+      ? `<div class="quiz-options">${tests}</div>`
+      : `<textarea spellcheck="false">${escapeHtml(answer.code)}</textarea>`;
+    const resetText = task.type === "quiz" ? "Сбросить ответ" : "Сбросить код";
+    const runText = task.type === "quiz" ? "Проверить ответ" : "Запустить проверку";
     return `
       <article class="task" data-task="${task.id}">
         <div class="task-header">
@@ -195,13 +258,13 @@ function renderTasks() {
             <span class="badge">${answer.passed ? "Готово" : `#${index + 1}`}</span>
           </div>
           <p class="muted">${escapeHtml(task.text)}</p>
-          <ul class="test-list">${tests}</ul>
+          ${task.type === "quiz" ? "" : tests}
         </div>
         <div class="task-body">
-          <textarea spellcheck="false">${escapeHtml(answer.code)}</textarea>
+          ${editor}
           <div class="task-actions">
-            <button data-run="${task.id}">Запустить проверку</button>
-            <button class="secondary" data-reset="${task.id}">Сбросить код</button>
+            <button data-run="${task.id}">${runText}</button>
+            <button class="secondary" data-reset="${task.id}">${resetText}</button>
           </div>
           <p class="feedback ${answer.passed ? "ok" : answer.lastError ? "bad" : ""}">${escapeHtml(answer.passed ? "Верно" : answer.lastError)}</p>
         </div>
@@ -213,6 +276,13 @@ function renderTasks() {
     textarea.addEventListener("input", () => {
       const taskId = textarea.closest(".task").dataset.task;
       state.answers[taskId].code = textarea.value;
+    });
+  });
+
+  tasksEl.querySelectorAll('input[type="radio"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      const taskId = input.closest(".task").dataset.task;
+      state.answers[taskId].selected = input.value;
     });
   });
 
@@ -230,7 +300,8 @@ function renderTasks() {
 function resetTask(taskId) {
   const task = TASKS.find((item) => item.id === taskId);
   state.answers[taskId] = {
-    code: task.starter,
+    code: task.starter || "",
+    selected: "",
     passed: false,
     attempts: state.answers[taskId].attempts,
     lastError: "",
@@ -244,23 +315,27 @@ function runTask(taskId) {
   const task = TASKS.find((item) => item.id === taskId);
   const answer = state.answers[taskId];
   answer.attempts += 1;
-  answer.code = document.querySelector(`[data-task="${taskId}"] textarea`).value;
+  if (task.type === "quiz") {
+    const selected = document.querySelector(`[data-task="${taskId}"] input[type="radio"]:checked`);
+    answer.selected = selected ? selected.value : "";
+    answer.code = answer.selected;
+  } else {
+    answer.code = document.querySelector(`[data-task="${taskId}"] textarea`).value;
+  }
   const attempt = {
     number: answer.attempts,
     checkedAt: new Date().toISOString(),
     code: answer.code,
+    answer: task.type === "quiz" ? answer.selected : undefined,
     passed: false,
     error: "",
     tests: []
   };
 
   try {
-    const api = buildApi(answer.code, task.fn);
-    const testResults = task.tests.map(([label, call, expected]) => {
-      const actual = call(api);
-      const passed = deepEqual(actual, expected);
-      return { label, expected, actual, passed };
-    });
+    const testResults = task.type === "quiz"
+      ? runQuizTask(task, answer)
+      : runCodeTask(task, answer);
     const failed = testResults.find((item) => !item.passed);
     answer.testResults = testResults;
     answer.passed = !failed;
@@ -279,6 +354,34 @@ function runTask(taskId) {
 
   answer.attemptLog.push(attempt);
   renderTasks();
+}
+
+function runCodeTask(task, answer) {
+  const api = buildApi(answer.code, task.fn);
+  return task.tests.map(([label, call, expected]) => {
+    const actual = call(api);
+    const passed = deepEqual(actual, expected);
+    return { label, expected, actual, passed };
+  });
+}
+
+function runQuizTask(task, answer) {
+  if (!answer.selected) {
+    return [{
+      label: "Выбор ответа",
+      expected: task.correct,
+      actual: "ответ не выбран",
+      passed: false
+    }];
+  }
+
+  return [{
+    label: task.text,
+    expected: task.correct,
+    actual: answer.selected,
+    passed: answer.selected === task.correct,
+    explanation: task.explanation
+  }];
 }
 
 function buildApi(code, fnName) {
@@ -310,6 +413,8 @@ function buildReport() {
       attempts: answer.attempts,
       lastError: answer.lastError,
       code: answer.code,
+      selected: answer.selected,
+      type: task.type || "code",
       tests: answer.testResults,
       attemptLog: answer.attemptLog
     };
@@ -397,7 +502,7 @@ function renderResult({ index, report }) {
   const codeBlocks = report.tasks.map((task) => `
     <details>
       <summary>${escapeHtml(task.title)}: ${taskStatusText(task)}, запусков ${task.attempts}</summary>
-      <pre>${escapeHtml(task.code)}</pre>
+      ${renderFinalAnswer(task)}
       ${renderAttemptLog(task)}
     </details>
   `).join("");
@@ -415,6 +520,13 @@ function renderResult({ index, report }) {
       ${codeBlocks}
     </article>
   `;
+}
+
+function renderFinalAnswer(task) {
+  if (task.type === "quiz") {
+    return `<p class="answer-line"><strong>Финальный ответ:</strong> ${escapeHtml(task.selected || "не выбран")}</p>`;
+  }
+  return `<pre>${escapeHtml(task.code)}</pre>`;
 }
 
 function taskStatusText(task) {
@@ -460,9 +572,16 @@ function renderAttempt(attempt) {
       </div>
       <p>${escapeHtml(result)}</p>
       ${details}
-      <pre>${escapeHtml(attempt.code)}</pre>
+      ${renderAttemptAnswer(attempt)}
     </div>
   `;
+}
+
+function renderAttemptAnswer(attempt) {
+  if (attempt.answer !== undefined) {
+    return `<p class="answer-line"><strong>Ответ:</strong> ${escapeHtml(attempt.answer || "не выбран")}</p>`;
+  }
+  return `<pre>${escapeHtml(attempt.code)}</pre>`;
 }
 
 function deepEqual(a, b) {
