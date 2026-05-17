@@ -152,14 +152,6 @@ textarea {
   font-weight: 700;
 }
 
-.hint {
-  margin-top: 18px;
-  padding: 12px;
-  border-radius: 8px;
-  background: #f7efe3;
-  color: var(--muted);
-}
-
 .topbar {
   display: flex;
   align-items: center;
